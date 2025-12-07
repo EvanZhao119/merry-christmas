@@ -1,0 +1,16 @@
+# Ignore all photos folder (personal images)
+*/photos/
+photos/
+shannon/photos/
+frank/photos/
+
+# Ignore all jpg and png in the project
+*.jpg
+*.jpeg
+*.png
+*.mp3
+*.mp4
+
+# But keep icons or small assets folder if needed
+!assets/icons/*.png
+
