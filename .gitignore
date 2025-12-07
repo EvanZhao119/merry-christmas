@@ -14,3 +14,4 @@ frank/photos/
 # But keep icons or small assets folder if needed
 !assets/icons/*.png
 
+.DS_Store
