@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>✨ Merry Christmas & Happy New Year! ✨</title>
+  <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap" rel="stylesheet">
+  <style>
+    /* Base Styles */
+    body {
+      margin: 0;
+      overflow: hidden; /* Hide scrollbars */
+      background-color: #000000;
+      font-family: 'Arial', sans-serif;
+      cursor: pointer; /* Pointer cursor for interaction cue */
+    }
+
+    /* 1. TOP-LEFT MESSAGE AREA */
+    #title-container {
+      position: absolute;
+      top: 40px;
+      left: 40px;
+      width: auto;
+      text-align: left;
+      z-index: 100;
+      background-color: transparent;
+      padding: 0;
+      border-radius: 0;
+      border: none;
+    }
+
+    #main-title {
+      color: #FFD700;
+      font-family: 'Great Vibes', cursive;
+      font-size: 40px;
+      letter-spacing: 3px;
+      text-shadow: 0 0 10px #FFD700, 0 0 20px rgba(255, 215, 0, 0.7);
+      margin-bottom: 10px;
+    }
+
+    /* Message text container */
+    #card-content {
+      margin: 0;
+      max-width: 400px;
+    }
+   
+    /* Greeting message styles */
+    #message {
+      color: #FFD700;
+      font-size: 16px;
+      line-height: 1.6;
+      margin-top: 10px;
+      text-align: left;
+      text-shadow: 0 0 5px rgba(255, 215, 0, 0.4);
+    }
+
+    /* Initial Loading Screen */
+    #loading {
+      color: gold;
+      font-size: 20px;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 3000;
+      background: rgba(0, 0, 0, 0.7);
+      padding: 15px 30px;
+      border-radius: 10px;
+    }
+
+    /* 2. BOTTOM-LEFT AUDIO CONTROLS */
+    #audio-controls {
+      position: absolute;
+      bottom: 40px;
+      left: 40px;
+      transform: none;
+      z-index: 200;
+    }
+   
+    #play-music-btn {
+      padding: 10px 20px;
+      background: #006633;
+      color: white;
+      border: 2px solid #FFD700;
+      cursor: pointer;
+      border-radius: 5px;
+      font-weight: bold;
+      font-size: 16px;
+      box-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+    }
+  </style>
+</head>
+<body>
+
+  <div id="title-container">
+    <div id="main-title">✨ Merry Christmas & Happy New Year! ✨</div>
+    <div id="card-content">
+      <p id="message">
+        Dear [Friend's Name],<br>
+        Wishing you a holiday season filled with light, laughter, and joy.<br>
+        May the new year bring you wonderful adventures and great success.<br>
+        <br>
+        With much love,<br>
+        [Your Name]
+      </p>
+    </div>
+  </div>
+
+  <div id="loading">Loading 3D scene and photos...</div>
+
+  <div id="audio-controls">
+    <button id="play-music-btn">🔇 Mute</button>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tween.js/18.6.4/tween.umd.js"></script>
+
+  <script type="module">
+    // --- Core Configuration ---
+    let camera, scene, renderer;
+    // REMOVED trunkMesh from declaration
+    let treeParticles, starSprite, treeHitbox;
+    let ornaments = [];
+    let activeOrnament = null;
+    let raycaster = new THREE.Raycaster();
+    let mouse = new THREE.Vector2();
+
+    const PARTICLE_COUNT = 12000;
+   
+    // --- RESTORED/ADJUSTED PARAMETERS ---
+    const TREE_HEIGHT = 1500; // Restored to a larger height
+    const TREE_BASE_Y = -400; // Slightly negative Y to ensure the base is visible
+    const TREE_OFFSET_Y = TREE_BASE_Y + TREE_HEIGHT / 2; // Center Y position of the particle cone
+    const MAX_RADIUS = 480;
+    const ORNAMENT_SIZE = 70;
+    const Z_DISTANCE_FROM_CAMERA = 300;
+
+    let isTreeForm = true;
+    let originalParticlePositions = [];
+    let originalOrnamentPositions = [];
+    let ornamentTextures = [];
+
+    // --- Rendering Order Constants for Layering ---
+    const RENDER_ORDER_BACKGROUND = 0;
+    const RENDER_ORDER_PARTICLES = 10;
+    const RENDER_ORDER_ORNAMENTS = 20;
+    const RENDER_ORDER_ZOOMED = 100;
+
+    // --- Music Control ---
+    const audio = new Audio('christmas_music.mp4');
+    audio.loop = true;
+
+    // --- Asynchronously Load Local Photos ---
+    async function loadAllPhotos() {
+      const loadedOrnaments = [];
+      const loader = new THREE.TextureLoader();
+      const PHOTO_COUNT = 30;
+
+      for (let i = 1; i <= PHOTO_COUNT; i++) {
+        const path = `photos/${i}.jpg`;
+       
+        // Calculate position on the tree cone
+        const h = Math.random() * TREE_HEIGHT * 0.8 + (TREE_HEIGHT * 0.1);
+        const angle = Math.random() * Math.PI * 2;
+        const radiusAtHeight = (TREE_HEIGHT - h) / TREE_HEIGHT * MAX_RADIUS;
+        const r = radiusAtHeight + 20;
+       
+        // Adjusted Y position for the new tree base
+        const y = h + TREE_BASE_Y;
+        const pos = { x: r * Math.cos(angle), y: y, z: r * Math.sin(angle) };
+       
+        try {
+          const texture = await new Promise((resolve, reject) => {
+            loader.load(path, resolve, undefined, reject);
+          });
+
+          const material = new THREE.SpriteMaterial({
+            map: texture,
+            transparent: true,
+            depthTest: false
+          });
+          loadedOrnaments.push({ material, pos, texture });
+        } catch (e) {
+          console.warn(`Photo not found: ${path}`);
+        }
+      }
+      return loadedOrnaments;
+    }
+
+
+    // --- 1. Initialize 3D Scene ---
+    async function init3D() {
+      scene = new THREE.Scene();
+      scene.fog = new THREE.FogExp2(0x000000, 0.0008);
+
+      camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 3000);
+     
+      // --- MODIFIED CAMERA POSITION ---
+      camera.position.z = 1200; // Move back slightly
+      camera.position.y = 50; // Keep camera closer to the base (was 300)
+      camera.lookAt(0, 200, 0); // Look slightly below the center of the cone to see the base photos
+
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
+
+      // Particle map (CanvasTexture): creating a glowing dot
+      const canvas = document.createElement('canvas');
+      canvas.width = 64; canvas.height = 64;
+      const context = canvas.getContext('2d');
+      const gradient = context.createRadialGradient(32, 32, 0, 32, 32, 32);
+      gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+      gradient.addColorStop(0.2, 'rgba(255, 215, 0, 0.8)'); // Core gold color
+      gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      context.fillStyle = gradient;
+      context.fillRect(0,0,64,64);
+      const spriteMap = new THREE.CanvasTexture(canvas);
+
+      // --- Create Particle Christmas Tree (Cone) ---
+      const particleGeometry = new THREE.BufferGeometry();
+      const positions = [];
+      const colors = [];
+
+      for (let i = 0; i < PARTICLE_COUNT; i++) {
+        const h = Math.random() * TREE_HEIGHT;
+        const angle = Math.random() * Math.PI * 2;
+        const radiusAtHeight = (TREE_HEIGHT - h) / TREE_HEIGHT * MAX_RADIUS;
+        const r = radiusAtHeight + (Math.random() - 0.5) * 40;
+        const x = r * Math.cos(angle);
+       
+        // Particle Y position relative to the new tree base
+        const y = h + TREE_BASE_Y;
+       
+        const z = r * Math.sin(angle);
+        positions.push(x, y, z);
+        originalParticlePositions.push(new THREE.Vector3(x, y, z));
+        const color = new THREE.Color();
+        color.setHSL(i / PARTICLE_COUNT * 0.1 + 0.05, 0.9, Math.random() * 0.5 + 0.5);
+        colors.push(color.r, color.g, color.b);
+      }
+
+      particleGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      particleGeometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+
+      const particleMaterial = new THREE.PointsMaterial({
+        size: 15,
+        map: spriteMap,
+        blending: THREE.AdditiveBlending,
+        depthTest: false,
+        transparent: true,
+        vertexColors: true
+      });
+      treeParticles = new THREE.Points(particleGeometry, particleMaterial);
+      treeParticles.renderOrder = RENDER_ORDER_PARTICLES;
+      scene.add(treeParticles);
+
+      // --- Create Invisible Click Area (Hitbox) ---
+      const coneGeo = new THREE.ConeGeometry(MAX_RADIUS + 50, TREE_HEIGHT + 100, 32);
+      const coneMat = new THREE.MeshBasicMaterial({ opacity: 0, visible: false });
+      treeHitbox = new THREE.Mesh(coneGeo, coneMat);
+      // Center the hitbox over the entire tree structure
+      treeHitbox.position.y = TREE_OFFSET_Y;
+      treeHitbox.userData.isHitbox = true;
+      treeHitbox.renderOrder = RENDER_ORDER_BACKGROUND;
+      scene.add(treeHitbox);
+
+      // --- Top Star ---
+      const starGeo = new THREE.SphereGeometry(25, 16, 16);
+      starSprite = new THREE.Mesh(starGeo, new THREE.MeshBasicMaterial({ color: 0xFFD700 }));
+      // Adjusted Y position: top of the particle cone + a small offset
+      starSprite.position.set(0, TREE_BASE_Y + TREE_HEIGHT + 30, 0);
+
+      // Star Glow
+      const starGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: spriteMap, color: 0xFFFFFF, transparent: true, blending: THREE.AdditiveBlending, depthTest: false }));
+      starGlow.scale.set(400, 400, 1);
+      starSprite.add(starGlow);
+      starSprite.renderOrder = RENDER_ORDER_PARTICLES;
+      scene.add(starSprite);
+
+      // --- Mount Photo Ornaments ---
+      const loadedPhotos = await loadAllPhotos();
+      let ornamentIndex = 0;
+      for (const { material, pos, texture } of loadedPhotos) {
+        const sprite = new THREE.Sprite(material);
+        sprite.position.set(pos.x, pos.y, pos.z);
+        sprite.scale.set(ORNAMENT_SIZE, ORNAMENT_SIZE, 1);
+        sprite.renderOrder = RENDER_ORDER_ORNAMENTS;
+        sprite.userData = {
+          originalPos: sprite.position.clone(),
+          originalScale: sprite.scale.clone(),
+          isZoomed: false,
+          index: ornamentIndex
+        };
+        treeParticles.add(sprite);
+        ornaments.push(sprite);
+        originalOrnamentPositions.push(sprite.position.clone());
+        ornamentTextures.push(texture);
+        ornamentIndex++;
+      }
+
+      document.getElementById("loading").style.display = "none";
+
+      window.addEventListener('resize', onWindowResize);
+      window.addEventListener('click', onMouseClick);
+    }
+
+    // --- 2. Animation Loop ---
+    function animate() {
+      requestAnimationFrame(animate);
+      TWEEN.update();
+
+      // Rotate tree particles, hitbox
+      if (treeParticles && isTreeForm) {
+        treeParticles.rotation.y += 0.002;
+        treeHitbox.rotation.y += 0.002;
+        // REMOVED trunkMesh rotation
+      }
+      if (starSprite) starSprite.rotation.y += 0.002;
+
+      // Particle size pulse effect
+      const time = Date.now() * 0.005;
+      if (treeParticles) {
+        treeParticles.material.size = 15 + Math.sin(time) * 4;
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    // --- Particle Scatter Function ---
+    function scatterParticles() {
+      if (!isTreeForm) return;
+      isTreeForm = false;
+      const positions = treeParticles.geometry.attributes.position.array;
+     
+      // 1. Scatter tree particles
+      for (let i = 0; i < PARTICLE_COUNT; i++) {
+        const i3 = i * 3;
+
+        // Target position: randomly scattered within a large sphere
+        const distance = Math.random() * 2500;
+        const theta = Math.random() * Math.PI * 2;
+        const phi = Math.acos(Math.random() * 2 - 1);
+
+        const targetX = distance * Math.sin(phi) * Math.cos(theta);
+        const targetY = distance * Math.sin(phi) * Math.sin(theta);
+        const targetZ = distance * Math.cos(phi);
+
+        new TWEEN.Tween({ x: positions[i3], y: positions[i3+1], z: positions[i3+2] })
+          .to({ x: targetX, y: targetY, z: targetZ }, 2000)
+          .easing(TWEEN.Easing.Exponential.Out)
+          .onUpdate(function(obj) {
+            positions[i3] = obj.x;
+            positions[i3+1] = obj.y;
+            positions[i3+2] = obj.z;
+            treeParticles.geometry.attributes.position.needsUpdate = true;
+          })
+          .start();
+      }
+
+      // 2. Scatter photo ornaments
+      for(const ornament of ornaments) {
+        if(ornament.userData.isZoomed) continue;
+
+        const CAMERA_Y = camera.position.y;
+        const SCATTER_RANGE_X = 700;
+        const SCATTER_RANGE_Y = 500;
+        const MIN_Z = 300;
+        const MAX_Z = 900;
+
+        const targetX = (Math.random() - 0.5) * 2 * SCATTER_RANGE_X;
+        const targetY = CAMERA_Y + (Math.random() - 0.5) * 2 * SCATTER_RANGE_Y;
+        const targetZ = MIN_Z + Math.random() * (MAX_Z - MIN_Z);
+
+        // Detach photo from the tree particle group to prevent rotation during scatter
+        ornament.updateWorldMatrix(true, false);
+        const worldPosition = new THREE.Vector3();
+        ornament.getWorldPosition(worldPosition);
+        treeParticles.remove(ornament);
+        scene.add(ornament);
+        ornament.position.copy(worldPosition);
+
+        new TWEEN.Tween(ornament.position)
+          .to({ x: targetX, y: targetY, z: targetZ }, 2000)
+          .easing(TWEEN.Easing.Exponential.Out)
+          .start();
+      }
+    }
+
+    // --- Particle Restore Function ---
+    function restoreParticles() {
+      if (isTreeForm) return;
+      isTreeForm = true;
+      const positions = treeParticles.geometry.attributes.position.array;
+     
+      // 1. Restore tree particles
+      for (let i = 0; i < PARTICLE_COUNT; i++) {
+        const i3 = i * 3;
+        const targetPos = originalParticlePositions[i];
+
+        new TWEEN.Tween({ x: positions[i3], y: positions[i3+1], z: positions[i3+2] })
+          .to(targetPos, 1500)
+          .easing(TWEEN.Easing.Exponential.Out)
+          .onUpdate(function(obj) {
+            positions[i3] = obj.x;
+            positions[i3+1] = obj.y;
+            positions[i3+2] = obj.z;
+            treeParticles.geometry.attributes.position.needsUpdate = true;
+          })
+          .start();
+      }
+
+      // 2. Restore photo ornaments
+      for(let i = 0; i < ornaments.length; i++) {
+        const ornament = ornaments[i];
+        if(ornament.userData.isZoomed) continue;
+
+        // Re-attach to the tree particle group
+        scene.remove(ornament);
+        treeParticles.add(ornament);
+
+        // Restore to original position (relative to the tree particle group)
+        new TWEEN.Tween(ornament.position)
+          .to(originalOrnamentPositions[i], 1500)
+          .easing(TWEEN.Easing.Exponential.Out)
+          .start();
+      }
+    }
+
+    // --- Mouse Click Event ---
+    function onMouseClick(event) {
+      if (event.target.id === 'play-music-btn') return;
+
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+
+      // Removed trunkMesh from intersectableObjects
+      const intersectableObjects = [...ornaments, treeHitbox];
+      const intersects = raycaster.intersectObjects(intersectableObjects, true);
+
+      let clickedOrnament = null;
+      let clickedTreeHitbox = false;
+
+      if (intersects.length > 0) {
+        for (const intersect of intersects) {
+          if (ornaments.includes(intersect.object)) {
+            clickedOrnament = intersect.object;
+            break;
+          }
+          if (intersect.object.userData.isHitbox) {
+            clickedTreeHitbox = true;
+          }
+        }
+      }
+
+      // 1. If a photo is currently zoomed in, any click attempts to zoom out
+      if (activeOrnament) {
+        toggleOrnamentZoom(activeOrnament, false);
+        if(!isTreeForm) restoreParticles();
+        return;
+      }
+
+      // 2. Handle photo click: zoom in
+      if (clickedOrnament) {
+        toggleOrnamentZoom(clickedOrnament, true);
+        return;
+      }
+
+      // 3. Handle tree hitbox or background click: toggle particle state
+      if (clickedTreeHitbox || !isTreeForm) {
+        if (isTreeForm) {
+          scatterParticles();
+        } else {
+          restoreParticles();
+        }
+      }
+    }
+
+    // --- Photo Zoom In/Out Animation ---
+    function toggleOrnamentZoom(sprite, shouldZoom) {
+      const index = sprite.userData.index;
+      const texture = ornamentTextures[index];
+
+      const targetWidth = 500;
+      let targetHeight = 500;
+
+      if (texture && texture.image) {
+        const aspectRatio = texture.image.width / texture.image.height;
+        targetHeight = targetWidth / aspectRatio;
+      }
+
+      if (shouldZoom && !sprite.userData.isZoomed) {
+        // Zoom in
+        if (activeOrnament && activeOrnament !== sprite) {
+          toggleOrnamentZoom(activeOrnament, false);
+        }
+
+        sprite.renderOrder = RENDER_ORDER_ZOOMED;
+
+        sprite.updateWorldMatrix(true, false);
+        const worldPosition = new THREE.Vector3();
+        sprite.getWorldPosition(worldPosition);
+
+        if (sprite.parent === treeParticles) {
+          treeParticles.remove(sprite);
+        }
+        scene.add(sprite);
+        sprite.position.copy(worldPosition);
+
+        // Use the new camera Y position for centering
+        new TWEEN.Tween(sprite.position)
+          .to({ x: camera.position.x, y: camera.position.y, z: camera.position.z - Z_DISTANCE_FROM_CAMERA }, 800)
+          .easing(TWEEN.Easing.Quadratic.Out)
+          .start();
+
+        new TWEEN.Tween(sprite.scale)
+          .to({ x: targetWidth, y: targetHeight, z: 1 }, 800)
+          .easing(TWEEN.Easing.Quadratic.Out)
+          .start();
+
+        sprite.userData.isZoomed = true;
+        activeOrnament = sprite;
+      } else if (!shouldZoom && sprite.userData.isZoomed) {
+        // Zoom out
+
+        sprite.renderOrder = RENDER_ORDER_ORNAMENTS;
+
+        if (isTreeForm) {
+          // Re-attach to particle group for correct tree-relative position/rotation
+          scene.remove(sprite);
+          treeParticles.add(sprite);
+        }
+       
+        new TWEEN.Tween(sprite.position)
+          // If in tree form, restore to the original relative position
+          .to(isTreeForm ? sprite.userData.originalPos : sprite.position, 600)
+          .easing(TWEEN.Easing.Quadratic.In)
+          .start();
+
+        new TWEEN.Tween(sprite.scale)
+          .to(sprite.userData.originalScale, 600)
+          .easing(TWEEN.Easing.Quadratic.In)
+          .start();
+
+        sprite.userData.isZoomed = false;
+        activeOrnament = null;
+      }
+    }
+
+    // --- Music Playback Logic ---
+    function toggleMusic() {
+      const btn = document.getElementById('play-music-btn');
+      if (audio.paused) {
+        audio.play().then(() => {
+          btn.textContent = '🔊 Mute';
+        }).catch(() => {
+          btn.textContent = '🎶 Play Music (Blocked)';
+        });
+      } else {
+        audio.pause();
+        btn.textContent = '🔇 Mute';
+      }
+    }
+
+    document.getElementById('play-music-btn').addEventListener('click', toggleMusic);
+
+    // Attempt to autoplay (usually blocked by browsers)
+    function startMusicOnLoad() {
+      audio.volume = 0.6;
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.then(() => {
+          document.getElementById('play-music-btn').textContent = '🔊 Mute';
+        }).catch(() => {
+          document.getElementById('play-music-btn').textContent = '🎶 Play Music';
+          audio.pause();
+        });
+      } else {
+        document.getElementById('play-music-btn').textContent = '🎶 Play Music';
+        audio.pause();
+      }
+    }
+
+    // --- Window Resize Handler ---
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    // --- Initialization and Start ---
+    init3D().then(() => {
+      animate();
+      startMusicOnLoad();
+    });
+
+  </script>
+</body>
+</html>
